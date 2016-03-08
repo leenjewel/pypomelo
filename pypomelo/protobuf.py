@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import, division, print_function, with_statement
+
 import struct
-from stream import Stream
+from pypomelo.stream import Stream
 
 PROTOBUF_UINT32 = 1
 PROTOBUF_INT32  = 2
@@ -303,12 +305,4 @@ def protobuf_decode(stream, global_protos, protos, result = {}) :
         elif 'repeated' == option :
             protobuf_decode_array(stream, global_protos, protos, proto, proto_tag, result)
 
-
-if __name__ == '__main__' :
-    si = 55
-    print si
-    ei = protobuf_encode_varint(si)
-    print ei
-    di = protobuf_decode_varint(ei)
-    print di
 

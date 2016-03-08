@@ -14,10 +14,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pomelo protocol by python."""
+try :
+    import setuptools
+    from setuptools import setup
+except ImportError :
+    setuptools = None
+    from distutils.core import setup
 
-from __future__ import absolute_import, division, print_function, with_statement
+kwargs = {}
 
 version = "0.0.1"
-version_info = (0, 0, 1, 0)
+
+setup(
+    name = "pypomelo",
+    version = version,
+    packages = ["pypomelo"],
+    package_data = {},
+    author = "leenjewel",
+    author_email = "leenjewel@gmail.com",
+    url="https://github.com/leenjewel/pypomelo",
+    license="http://www.apache.org/licenses/LICENSE-2.0",
+    description="PyPomelo is a pomelo protocol by python",
+    **kwargs
+)
 

@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from protobuf import *
-from stream import Stream
+from __future__ import absolute_import, division, print_function, with_statement
+
+from pypomelo.protobuf import *
+from pypomelo.stream import Stream
 import json
 
 class Message(object) :
