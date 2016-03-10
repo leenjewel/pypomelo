@@ -14,6 +14,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Message encode or decode body of pomelo protocol package
+
+Pomelo protocol package :
+
++++++++++++++++++++++++++++++++++++++++
++ type +    length    +      body     +
++++++++++++++++++++++++++++++++++++++++
+ 1 bytes    3 bytes      length bytes
+
+Body of package :
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
++  flag  +  message id  +    route    +            data              +
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 byte     0 ~ 5 bytes   0 ~ 256 bytes
+
+Flag of message :
+
+                   1 byte
+++++++++++++++++++++++++++++++++++++++++++
++          +  message type  +  is route  +
+++++++++++++++++++++++++++++++++++++++++++
+   4 bits          3 bits         1 bit
+
+Message Types :
+             flag
+request :  |----000-| message id | route |
+notify  :  |----001-| route |
+response:  |----010-| message id |
+push    :  |----011-| route |
+
+Route compress :
+
+flag              route
+|-------0|        | length (1 byte) | utf8 string |
+|-------1|        | route code (2 bytes, big end) |
+"""
+
 from __future__ import absolute_import, division, print_function, with_statement
 
 from pypomelo.protobuf import *
@@ -21,6 +59,8 @@ from pypomelo.stream import Stream
 import json
 
 class Message(object) :
+    """Encode and decode body of promelo protocol package
+    """
 
     MSG_TYPE_REQUEST  = 0
     MSG_TYPE_NOTIFY   = 1
@@ -65,11 +105,11 @@ class Message(object) :
         return len(self.route)
 
 
-    def encode_flag(self, stream) :
-        if None is self.route or len(self.route) == 0 :
-            stream.write(struct.pack('B', (self.msg_type << 1) | 0x0))
-        else :
+    def encode_flag(self, stream, compress_route = True) :
+        if compress_route :
             stream.write(struct.pack('B', (self.msg_type << 1) | 0x1))
+        else :
+            stream.write(struct.pack('B', (self.msg_type << 1) | 0x0))
 
 
     def encode_id(self, stream) :
@@ -87,7 +127,7 @@ class Message(object) :
 
     def encode_by_route(self, msg_data) :
         stream = Stream()
-        self.encode_flag(stream)
+        self.encode_flag(stream, False)
         if self.has_id() :
             self.encode_id(stream)
         if self.has_route() :
@@ -110,12 +150,18 @@ class Message(object) :
 
 
     def encode(self, route_to_code, client_protos) :
-        protos = client_protos.get(self.route)
+        if client_protos is None :
+            protos = None
+        else :
+            protos = client_protos.get(self.route)
         if protos :
             msg_data = protobuf_encode(client_protos, protos, self.body)
         else :
-            msg_data = json.dumps(self.msg)
-        code = route_to_code.get(self.route, 0)
+            msg_data = json.dumps(self.body)
+        if route_to_code is None :
+            code = 0
+        else :
+            code = route_to_code.get(self.route, 0)
         if code > 0 :
             ret = self.encode_by_code(code, msg_data)
         else :
@@ -147,7 +193,7 @@ class Message(object) :
 
 
     @classmethod
-    def decode(cls, code_to_route, global_protos, data) :
+    def decode(cls, code_to_route, global_protos, data, msgid_to_route = None) :
         flag = 0xF & struct.unpack("B", data[0])[0]
         message_type = flag >> 1
         is_route = flag & 0x01
@@ -164,7 +210,13 @@ class Message(object) :
             return cls(message_type, 0, route, body)
         elif message_type == Message.MSG_TYPE_RESPONSE :
             msg_id = cls.decode_id(stream)
-            body = json.loads(stream.read())
+            route = None
+            if isinstance(msgid_to_route, dict) :
+                route = msgid_to_route.get(msg_id)
+            if isinstance(global_protos, dict) and route and global_protos.has_key(route) :
+                body = protobuf_decode(stream, global_protos, global_protos[route])
+            else:
+                body = json.loads(stream.read())
             return cls(message_type, msg_id, None, body)
 
 

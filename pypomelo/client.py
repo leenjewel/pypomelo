@@ -37,6 +37,7 @@ class Client(object) :
         self.global_client_protos = None
         self.request_id = 1
         self.request_handler = {}
+        self.msgid_to_route = {}
 
 
     def connect(self, host, port) :
@@ -67,8 +68,8 @@ class Client(object) :
 
     def send_request(self, route, request_data, on_request = None) :
         assert isinstance(request_data, dict), "request data must be dictionary"
+        self.msgid_to_route[self.request_id] = route
         self.request_handler[self.request_id] = {
-            "route" : route,
             "request_data" : request_data,
             "handler" : on_request,
         }
@@ -106,12 +107,12 @@ class Client(object) :
                     self.handler.on_connected(self, message.get('user'))
         elif Protocol.PROTO_TYPE_DATA == protocol_pack.proto_type :
             protocol_data = protocol_pack.data
-            message = Message.decode(self.code_to_route, self.global_server_protos, protocol_data)
+            message = Message.decode(self.code_to_route, self.global_server_protos, protocol_data, self.msgid_to_route)
             if Message.MSG_TYPE_RESPONSE == message.msg_type :
                 msg_id = message.msg_id
                 request_handler = self.request_handler.get(msg_id)
                 if request_handler :
-                    route = request_handler['route']
+                    route = self.msgid_to_route.get(msg_id)
                     request = request_handler['request_data']
                     handler = request_handler.get('handler')
                     if handler is None :
@@ -119,6 +120,8 @@ class Client(object) :
                             self.handler.on_response(self, route, request, message.body)
                     else :
                         handler(self, route, request, message.body)
+                del self.msgid_to_route[msg_id]
+                del self.request_handler[msg_id]
             elif Message.MSG_TYPE_PUSH == message.msg_type :
                 if hasattr(self.handler, 'on_notify') :
                     route = message.route
