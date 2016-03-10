@@ -14,6 +14,89 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Protobuf encoder and decoder
+
+About Protobuf see :
+https://developers.google.com/protocol-buffers/
+
+About protobuf of pomelo see :
+https://github.com/NetEase/pomelo/wiki/Communication-Protocol
+
+About protobuf varints see :
+https://developers.google.com/protocol-buffers/docs/encoding#varints
+
+Pomelo Server define protobuf protocol on configure file clientProtos.json :
+
+{
+    "connector.entryHandler.test" : {
+        "required uInt32 test_uInt32" : 1,
+        "required int32 test_int32" : 2,
+        "required sInt32 test_sInt32" : 3,
+        "required float test_float" : 4,
+        "required double test_double" : 5,
+        "required string test_string" : 6,
+        "repeated int32 test_repeated" : 7,
+        "message Test_submessage" : {
+            "required uInt32 sub_uInt32" : 1,
+            "required int32 sub_int32" : 2,
+            "required sInt32 sub_sInt32" : 3,
+            "required float sub_float" : 4,
+            "required double sub_double" : 5,
+            "required string sub_string" : 6,
+            "repeated int32 sub_repeated" : 7
+        },
+        "required Test_submessage test_submessage" : 8
+    }
+}
+
+And change to JSON data send to client at handshake :
+
+{
+    "connector.entryHandler.test": {
+        "__tags": {
+            "1": "test_uInt32",
+            "2": "test_int32",
+            "3": "test_sInt32",
+            "4": "test_float",
+            "5": "test_double",
+            "6": "test_string",
+            "7": "test_repeated",
+            "8": "test_submessage"
+        },
+        "test_uInt32":     {"option": "required", "tag": 1, "type": "uInt32"},
+        "test_int32":      {"option": "required", "tag": 2, "type": "int32"},
+        "test_sInt32":     {"option": "required", "tag": 3, "type": "sInt32"},
+        "test_float":      {"option": "required", "tag": 4, "type": "float"},
+        "test_double":     {"option": "required", "tag": 5, "type": "double"},
+        "test_string":     {"option": "required", "tag": 6, "type": "string"},
+        "test_repeated":   {"option": "repeated", "tag": 7, "type": "int32"},
+        "test_submessage": {"option": "required", "tag": 8, "type": "Test_submessage"},
+        "__messages": {
+            "Test_submessage": {
+                "__messages": {},
+                "__tags": {
+                    "1": "sub_uInt32",
+                    "2": "sub_int32",
+                    "3": "sub_sInt32",
+                    "4": "sub_float",
+                    "5": "sub_double",
+                    "6": "sub_string",
+                    "7": "sub_repeated"
+                },
+                "sub_uInt32":     {"option": "required", "tag": 1, "type": "uInt32"},
+                "sub_int32":      {"option": "required", "tag": 2, "type": "int32"},
+                "sub_sInt32":     {"option": "required", "tag": 3, "type": "sInt32"},
+                "sub_float":      {"option": "required", "tag": 4, "type": "float"},
+                "sub_double":     {"option": "required", "tag": 5, "type": "double"},
+                "sub_string":     {"option": "required", "tag": 6, "type": "string"},
+                "sub_repeated":   {"option": "repeated", "tag": 7, "type": "int32"}
+            }
+        }
+    }
+}
+
+"""
+
 from __future__ import absolute_import, division, print_function, with_statement
 
 import struct
@@ -27,6 +110,11 @@ PROTOBUF_DOUBLE = 5
 PROTOBUF_STRING = 6
 
 def protobuf_encode_varint(value):
+    """Encode uInt32 and int32
+
+    About protobuf varints see :
+    https://developers.google.com/protocol-buffers/docs/encoding#varints
+    """
     value = int(value)
     buf = []
     if 0 == value :
@@ -39,7 +127,6 @@ def protobuf_encode_varint(value):
 
 
 def protobuf_encode_svarint(value):
-    value = int(value)
     if value < 0 :
         return protobuf_encode_varint(~(value << 1))
     else :
@@ -82,6 +169,25 @@ def protobuf_get_type(proto_type) :
 
 
 def protobuf_get_constant_type(proto_type) :
+    """About protobuf write types see :
+    https://developers.google.com/protocol-buffers/docs/encoding#structure
+
+    +--------------------------------------+
+    + Type + Meaning +       Used For      +
+    +--------------------------------------+
+    +      +         + int32, int64, uint32+
+    +  0   + Varint  + uint64,sint32,sint64+
+    +      +         + boolean, enum       +
+    +--------------------------------------+
+    +      +         +                     +
+    +  1   + 64-bit  + fixed64, sfixed64,  +
+    +      +         + double              +
+    +--------------------------------------+
+    +  2   + string  + string              +
+    +--------------------------------------+
+    +  5   + 32-bit  + float               +
+    +--------------------------------------+
+    """
     if 'uInt32' == proto_type or \
         'sInt32' == proto_type or \
         'int32' == proto_type :

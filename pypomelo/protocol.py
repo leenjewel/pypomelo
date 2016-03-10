@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Pomelo protocol See :
+
+https://github.com/NetEase/pomelo/wiki/Communication-Protocol
+
+"""
+
 from __future__ import absolute_import, division, print_function, with_statement
 
 import struct
@@ -21,6 +27,15 @@ import json
 from pypomelo.message import Message
 
 class Protocol(object) :
+    """A implementation of pomelo protocol.
+
+    +++++++++++++++++++++++++++++++++++++++
+    + type +    length    +      body     +
+    +++++++++++++++++++++++++++++++++++++++
+     1 bytes    3 bytes      length bytes
+                big end
+
+    """
 
     PROTO_TYPE_SYC       = 0x01
     PROTO_TYPE_ACK       = 0x02
@@ -43,6 +58,8 @@ class Protocol(object) :
 
 
     def head(self):
+        """Encode protocol head
+        """
         return "%s%s"  %(struct.pack("B", self.proto_type), struct.pack(">I", len(self.data))[1:])
 
 
@@ -51,12 +68,24 @@ class Protocol(object) :
 
 
     def append(self, data):
+        """When a protocol data package is sent by TCP,
+        We could know protocol type and body length from
+        first TCP frame.
+
+        Then append other body data from more TCP frames
+        until length of body equal length of protocol head
+        """
         data_len = len(self.data)
         if data_len >= self.length :
             return False
         need_len = min(self.length - data_len, len(data))
         self.data += data[:need_len]
         return len(self.data) < self.length
+
+
+    def __add__(self, data) :
+        self.append(data)
+        return self
 
 
     def completed(self) :
@@ -67,8 +96,17 @@ class Protocol(object) :
         return "%s%s"  %(self.head(), self.body())
 
 
+    def __len__(self) :
+        return self.length
+
+
     @classmethod
     def unpack(cls, data):
+        """Decode protocol
+
+        Return a new instance of Protocol
+        data must be the first frame
+        """
         head = data[:4]
         proto_type = struct.unpack("B", head[0])[0]
         body_len = struct.unpack(">I", "\x00" + head[1:])[0]
