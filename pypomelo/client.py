@@ -14,6 +14,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""A client of Pomelo
+
+Handshake :
+
++----------+                    +----------+
++  client  +                    +  server  +
++----------+                    +----------+
+     |                               |
+     |        handshake reqest       |
+     |------------------------------>|
+     |                               |
+     |       handshake response      |
+     |<------------------------------|
+     |                               |
+     |             ack               |
+     |------------------------------>|
+     |                               |
+
+
+Heartbeat :
+
++----------+                    +----------+
++  client  +                    +  server  +
++----------+                    +----------+
+     |                               |
+     |        heartbeat reqest       |
+     |------------------------------>|
+     |                               |
+     |       heartbeat response      |
+     |<------------------------------|
+     |                               |
+     |       wait for some times     |
+     |                               |
+     |        heartbeat reqest       |
+     |------------------------------>|
+     |                               |
+     |       heartbeat response      |
+     |<------------------------------|
+     |                               |
+"""
+
 from __future__ import absolute_import, division, print_function, with_statement
 
 from pypomelo.protocol import Protocol
@@ -25,6 +66,8 @@ def loop(client) :
     pass
 
 class Client(object) :
+    """Pomelo client
+    """
 
     def __init__(self, handler) :
         self.__connect = socket(AF_INET, SOCK_STREAM)
@@ -38,15 +81,23 @@ class Client(object) :
         self.request_id = 1
         self.request_handler = {}
         self.msgid_to_route = {}
+        self.is_closing = False
 
 
     def connect(self, host, port) :
+        """Connect TCP
+        Send Pomelo handshake request
+        """
         self.__connect.connect((host, port))
         self.send(Protocol.syc('socket', '1.1.1').pack())
 
 
+    def close(self) :
+        self.is_closing = True
+
+
     def run(self) :
-        while True :
+        while not self.is_closing :
             recv_data = self.__connect.recv(1024)
             if 0 == len(recv_data) :
                 break;
@@ -58,6 +109,10 @@ class Client(object) :
                 protocol_body = self.handler.on_recv_data(protocol_pack.proto_type, recv_data)
             protocol_pack.append(protocol_body)
             self.on_protocol(protocol_pack)
+
+        self.__connect.close()
+        if hasattr(self.handler, 'on_disconnect') :
+            self.handler.on_disconnect()
 
 
     def send(self, data) :
@@ -87,6 +142,10 @@ class Client(object) :
         self.send(protocol_pack.pack())
 
 
+    def send_heartbeat(self) :
+        self.send(Protocol.heartbeat().pack())
+
+
     def on_protocol(self, protocol_pack) :
         if Protocol.PROTO_TYPE_SYC == protocol_pack.proto_type :
             protocol_data = protocol_pack.data
@@ -105,6 +164,11 @@ class Client(object) :
                 self.send(Protocol.ack().pack())
                 if hasattr(self.handler, 'on_connected') :
                     self.handler.on_connected(self, message.get('user'))
+        elif Protocol.PROTO_TYPE_HEARTBEAT == protocol_pack.proto_type :
+            if hasattr(self.handler, 'on_heartbeat') :
+                self.handler.on_heartbeat()
+        elif Protocol.PROTO_TYPE_FIN == protocol_pack.proto_type :
+            self.close()
         elif Protocol.PROTO_TYPE_DATA == protocol_pack.proto_type :
             protocol_data = protocol_pack.data
             message = Message.decode(self.code_to_route, self.global_server_protos, protocol_data, self.msgid_to_route)
