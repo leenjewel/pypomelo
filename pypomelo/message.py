@@ -113,6 +113,7 @@ class Message(object) :
 
 
     def encode_id(self, stream) :
+        assert self.has_id(), "Message type %d don't has id"  %(self.msg_type)
         msg_id = self.msg_id
         while True:
             tmp = msg_id & 0x7F
@@ -193,31 +194,33 @@ class Message(object) :
 
 
     @classmethod
+    def decode_message(cls, stream, message_type, global_protos, msg_id, route) :
+        if isinstance(global_protos, dict) and route and global_protos.has_key(route) :
+            body = protobuf_decode(stream, global_protos, global_protos[route])
+        else:
+            body = json.loads(stream.read())
+        return cls(message_type, msg_id, route, body)
+
+
+    @classmethod
     def decode(cls, code_to_route, global_protos, data, msgid_to_route = None) :
         flag = 0xF & struct.unpack("B", data[0])[0]
         message_type = flag >> 1
         is_route = flag & 0x01
 
+        msg_id = None
+        route = None
         stream = Stream(data[1:])
         if message_type == Message.MSG_TYPE_REQUEST :
             msg_id = cls.decode_id(stream)
             route = cls.decode_route(stream, code_to_route, is_route)
-            body = protobuf_decode(stream, global_protos, global_protos[route])
-            return cls(message_type, msg_id, route, body)
         elif message_type == Message.MSG_TYPE_NOTIFY :
             route = cls.decode_route(stream, code_to_route, is_route)
-            body = protobuf_decode(stream, global_protos, global_protos[route])
-            return cls(message_type, 0, route, body)
         elif message_type == Message.MSG_TYPE_RESPONSE :
             msg_id = cls.decode_id(stream)
-            route = None
             if isinstance(msgid_to_route, dict) :
                 route = msgid_to_route.get(msg_id)
-            if isinstance(global_protos, dict) and route and global_protos.has_key(route) :
-                body = protobuf_decode(stream, global_protos, global_protos[route])
-            else:
-                body = json.loads(stream.read())
-            return cls(message_type, msg_id, None, body)
+        return cls.decode_message(stream, message_type, global_protos, msg_id, route)
 
 
     @classmethod
