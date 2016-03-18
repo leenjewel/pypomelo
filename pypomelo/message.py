@@ -216,6 +216,8 @@ class Message(object) :
             route = cls.decode_route(stream, code_to_route, is_route)
         elif message_type == Message.MSG_TYPE_NOTIFY :
             route = cls.decode_route(stream, code_to_route, is_route)
+        elif message_type == Message.MSG_TYPE_PUSH :
+            route = cls.decode_route(stream, code_to_route, is_route)
         elif message_type == Message.MSG_TYPE_RESPONSE :
             msg_id = cls.decode_id(stream)
             if isinstance(msgid_to_route, dict) :
