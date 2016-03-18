@@ -70,7 +70,7 @@ class Client(object) :
     """
 
     def __init__(self, handler) :
-        self.__connect = socket(AF_INET, SOCK_STREAM)
+        self.socket = socket(AF_INET, SOCK_STREAM)
         self.handler = handler
         self.dict_version = None
         self.route_to_code = None
@@ -88,7 +88,7 @@ class Client(object) :
         """Connect TCP
         Send Pomelo handshake request
         """
-        self.__connect.connect((host, port))
+        self.socket.connect((host, port))
         self.send(Protocol.syc('socket', '1.1.1').pack())
 
 
@@ -98,19 +98,19 @@ class Client(object) :
 
     def run(self) :
         while not self.is_closing :
-            recv_data = self.__connect.recv(1024)
+            recv_data = self.socket.recv(1024)
             if 0 == len(recv_data) :
                 break;
             protocol_pack = Protocol.unpack(recv_data[:4])
             recv_data = recv_data[4:]
             while len(recv_data) < protocol_pack.length :
-                recv_data += self.__connect.recv(1024)
+                recv_data += self.socket.recv(1024)
             if hasattr(self.handler, 'on_recv_data') :
                 protocol_body = self.handler.on_recv_data(protocol_pack.proto_type, recv_data)
             protocol_pack.append(protocol_body)
             self.on_protocol(protocol_pack)
 
-        self.__connect.close()
+        self.socket.close()
         if hasattr(self.handler, 'on_disconnect') :
             self.handler.on_disconnect()
 
@@ -118,7 +118,7 @@ class Client(object) :
     def send(self, data) :
         if not isinstance(data, bytes) :
             data = bytes(data)
-        self.__connect.send(data)
+        self.socket.send(data)
 
 
     def send_request(self, route, request_data, on_request = None) :
