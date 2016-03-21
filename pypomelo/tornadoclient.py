@@ -29,7 +29,7 @@ class TornadoClient(Client) :
 
         class ClientHandler(object) :
 
-            def on_recv_data(self, proto_type, data) :
+            def on_recv_data(self, client, proto_type, data) :
                 print "recv_data..."
                 return data
 
@@ -37,17 +37,17 @@ class TornadoClient(Client) :
                 print "connect..."
                 client.send_heartbeat()
 
-            def on_disconnect(self) :
+            def on_disconnect(self, client) :
                 print "disconnect..."
 
-            def on_heartbeat(self) :
+            def on_heartbeat(self, client) :
                 print "heartbeat..."
                 send request ...
 
             def on_response(self, client, route, request, response) :
                 print "response..."
 
-            def on_notify(self, client, route, notify) :
+            def on_push(self, client, route, push_data) :
                 print "notify..."
 
         handler = ClientHandler()
@@ -58,6 +58,7 @@ class TornadoClient(Client) :
     """
 
     def __init__(self, handler) :
+        self.socket = socket(AF_INET, SOCK_STREAM)
         self.iostream = None
         self.protocol_package = None
         super(TornadoClient, self).__init__(handler)
@@ -69,13 +70,13 @@ class TornadoClient(Client) :
 
 
     def on_connect(self) :
-        self.send(Protocol.syc('socket', '1.1.1').pack())
+        self.send_sync()
         self.on_data()
 
 
     def on_close(self) :
         if hasattr(self.handler, 'on_disconnect') :
-            self.handler.on_disconnect()
+            self.handler.on_disconnect(self)
 
 
     def send(self, data) :
@@ -98,14 +99,10 @@ class TornadoClient(Client) :
 
     def on_body(self, body) :
         if hasattr(self.handler, 'on_recv_data') :
-            body = self.handler.on_recv_data(self.protocol_package.proto_type, body)
+            body = self.handler.on_recv_data(self, self.protocol_package.proto_type, body)
         self.protocol_package.append(body)
         self.on_protocol(self.protocol_package)
         self.on_data()
-
-
-    def run(self) :
-        pass
 
 
     def close(self) :

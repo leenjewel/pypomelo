@@ -7,19 +7,24 @@ pomelo protocol by python
 ```python
 
 import sys
-from pypomelo.client import Client
+from pypomelo.tornadoclient import TornadoClient as Client
+from pypomelo.handler import Handler
+import tornado.ioloop
 
 if __name__ == '__main__' :
     if len(sys.argv) < 3 :
         print "usage python %s host port" %(sys.argv[0])
         sys.exit(1)
 
-    class ClientHandler(object) :
+    class ClientHandler(Handler) :
 
-        def on_recv_data(self, proto_type, data) :
+        def on_recv_data(self, client, proto_type, data) :
             return data
 
         def on_connected(self, client, user_data) :
+            client.send_heartbeat()
+        
+        def on_heartbeat(self, client) :
             req_data = {
                 "test_uInt32" : 100,
                 "test_int32" : -100,
@@ -44,13 +49,19 @@ if __name__ == '__main__' :
             print "response..."
             print response
 
-        def on_notify(self, client, route, notify) :
-            pass
+        def on_push(self, client, route, push_data) :
+            print "push..."
+            print route, " = ", push_data
+        
+        def on_disconnect(self, client) :
+            print "disconnect..."
 
     host = sys.argv[1]
     port = sys.argv[2]
-    handler = ClientHandler()
-    client = Client(handler)
-    client.connect(host, int(port))
-    client.run()
+    #Start some client
+    for i in range(10) :
+        handler = ClientHandler()
+        client = Client(handler)
+        client.connect(host, int(port))
+    tornado.ioloop.IOLoop.current().start()
 ```

@@ -60,17 +60,12 @@ from __future__ import absolute_import, division, print_function, with_statement
 from pypomelo.protocol import Protocol
 from pypomelo.message import Message
 import json
-from socket import *
-
-def loop(client) :
-    pass
 
 class Client(object) :
     """Pomelo client
     """
 
     def __init__(self, handler) :
-        self.socket = socket(AF_INET, SOCK_STREAM)
         self.handler = handler
         self.dict_version = None
         self.route_to_code = None
@@ -81,47 +76,34 @@ class Client(object) :
         self.request_id = 1
         self.request_handler = {}
         self.msgid_to_route = {}
-        self.is_closing = False
 
 
     def connect(self, host, port) :
-        """Connect TCP
-        Send Pomelo handshake request
+        """Connect pomelo server
         """
-        self.socket.connect((host, port))
-        self.send(Protocol.syc('socket', '1.1.1').pack())
+        raise NotImplementedError()
 
 
     def close(self) :
-        self.is_closing = True
-
-
-    def run(self) :
-        while not self.is_closing :
-            recv_data = self.socket.recv(1024)
-            if 0 == len(recv_data) :
-                break;
-            protocol_pack = Protocol.unpack(recv_data[:4])
-            recv_data = recv_data[4:]
-            while len(recv_data) < protocol_pack.length :
-                recv_data += self.socket.recv(1024)
-            if hasattr(self.handler, 'on_recv_data') :
-                protocol_body = self.handler.on_recv_data(protocol_pack.proto_type, recv_data)
-            protocol_pack.append(protocol_body)
-            self.on_protocol(protocol_pack)
-
-        self.socket.close()
-        if hasattr(self.handler, 'on_disconnect') :
-            self.handler.on_disconnect()
+        raise NotImplementedError()
 
 
     def send(self, data) :
-        if not isinstance(data, bytes) :
-            data = bytes(data)
-        self.socket.send(data)
+        raise NotImplementedError()
+
+
+    def send_sync(self) :
+        """Send SYNC frame to pomelo server
+        """
+        self.send(Protocol.syc("socket", "1.1.1").pack())
 
 
     def send_request(self, route, request_data, on_request = None) :
+        """Send request to pomelo server
+
+        If on_request is not None, it will be called when receive response
+        from server, else on_response method of handler will be called.
+        """
         assert isinstance(request_data, dict), "request data must be dictionary"
         self.msgid_to_route[self.request_id] = route
         self.request_handler[self.request_id] = {
@@ -136,6 +118,12 @@ class Client(object) :
 
 
     def send_notify(self, route, notify_data) :
+        """Send notification to pomelo server
+
+        The difference between of notification and request is
+        it will receive a response from server after sent a request
+        and will receive nonthing after sent a notification
+        """
         assert isinstance(notify_data, dict), "Notify data must be dictionary"
         message = Message.notify(route, notify_data)
         protocol_pack = Protocol(Protocol.PROTO_TYPE_DATA, message.encode(self.route_to_code, self.global_client_protos))
@@ -166,7 +154,7 @@ class Client(object) :
                     self.handler.on_connected(self, message.get('user'))
         elif Protocol.PROTO_TYPE_HEARTBEAT == protocol_pack.proto_type :
             if hasattr(self.handler, 'on_heartbeat') :
-                self.handler.on_heartbeat()
+                self.handler.on_heartbeat(self)
         elif Protocol.PROTO_TYPE_FIN == protocol_pack.proto_type :
             self.close()
         elif Protocol.PROTO_TYPE_DATA == protocol_pack.proto_type :
@@ -187,8 +175,8 @@ class Client(object) :
                 del self.msgid_to_route[msg_id]
                 del self.request_handler[msg_id]
             elif Message.MSG_TYPE_PUSH == message.msg_type :
-                if hasattr(self.handler, 'on_notify') :
+                if hasattr(self.handler, 'on_push') :
                     route = message.route
-                    self.handler.on_notify(self, route, message.body)
+                    self.handler.on_push(self, route, message.body)
 
 
