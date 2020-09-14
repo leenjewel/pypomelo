@@ -53,6 +53,8 @@ class Protocol(object) :
 
     def __init__(self, proto_type, data = ""):
         self.proto_type = proto_type
+        if not isinstance(data, bytes):
+            data = bytes(data, encoding='utf8')
         self.data = data
         self.length = len(data)
 
@@ -60,7 +62,7 @@ class Protocol(object) :
     def head(self):
         """Encode protocol head
         """
-        return "%s%s"  %(struct.pack("B", self.proto_type), struct.pack(">I", len(self.data))[1:])
+        return struct.pack("B", self.proto_type) + struct.pack(">I", len(self.data))[1:]
 
 
     def body(self):
@@ -75,6 +77,8 @@ class Protocol(object) :
         Then append other body data from more TCP frames
         until length of body equal length of protocol head
         """
+        if not isinstance(data, bytes):
+            data = bytes(data, encoding='utf8')
         data_len = len(self.data)
         if data_len >= self.length :
             return False
@@ -93,7 +97,7 @@ class Protocol(object) :
 
 
     def pack(self):
-        return "%s%s"  %(self.head(), self.body())
+        return self.head() + self.body()
 
 
     def __len__(self) :
@@ -108,8 +112,11 @@ class Protocol(object) :
         data must be the first frame
         """
         head = data[:4]
-        proto_type = struct.unpack("B", head[0])[0]
-        body_len = struct.unpack(">I", "\x00" + head[1:])[0]
+        try:
+            proto_type = struct.unpack("B", head[0])[0]
+        except TypeError:
+            proto_type = struct.unpack("B", bytes(chr(head[0]), encoding='utf8'))[0]
+        body_len = struct.unpack(">I", b"\x00" + head[1:])[0]
         proto = cls(proto_type, data[4:])
         proto.length = body_len
         return proto

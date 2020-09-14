@@ -137,6 +137,11 @@ class Client(object) :
     def on_protocol(self, protocol_pack) :
         if Protocol.PROTO_TYPE_SYC == protocol_pack.proto_type :
             protocol_data = protocol_pack.data
+            if isinstance(protocol_data, bytes):
+                try:
+                    protocol_data = str(protocol_data, encoding='utf8')
+                except TypeError:
+                    protocol_data = str(protocol_data)
             message = json.loads(protocol_data[protocol_data.find('{') : protocol_data.rfind('}')+1])
             if 200 == message['code'] :
                 sys = message['sys']

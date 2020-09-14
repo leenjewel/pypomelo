@@ -22,6 +22,8 @@ class Stream(object) :
 
     def __init__(self, data = "") :
         self.index = 0
+        if not isinstance(data, bytes):
+            data = bytes(data, encoding='utf8')
         self.data = data
         self.size = len(self.data)
 
@@ -47,6 +49,8 @@ class Stream(object) :
 
 
     def write(self, data) :
+        if not isinstance(data, bytes):
+            data = bytes(data, encoding='utf8')
         self.data += data
         self.size = len(self.data)
 

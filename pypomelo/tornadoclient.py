@@ -82,7 +82,7 @@ class TornadoClient(Client) :
     def send(self, data) :
         assert not self.iostream.closed(), "iostream has closed"
         if not isinstance(data, bytes) :
-            data = bytes(data)
+            data = bytes(data, encoding='utf8')
         self.iostream.write(data)
 
 

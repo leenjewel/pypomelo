@@ -322,7 +322,7 @@ def protobuf_decode_tag(stream) :
     tag = 0
     try :
         temp = protobuf_decode_varint(stream)
-    except ValueError, e:
+    except ValueError as e:
         tag = -1
         if stream.tell() == 0 :
             eof = 1

@@ -195,7 +195,7 @@ class Message(object) :
 
     @classmethod
     def decode_message(cls, stream, message_type, global_protos, msg_id, route) :
-        if isinstance(global_protos, dict) and route and global_protos.has_key(route) :
+        if isinstance(global_protos, dict) and route and route in global_protos:
             body = protobuf_decode(stream, global_protos, global_protos[route])
         else:
             body = json.loads(stream.read())
@@ -204,7 +204,10 @@ class Message(object) :
 
     @classmethod
     def decode(cls, code_to_route, global_protos, data, msgid_to_route = None) :
-        flag = 0xF & struct.unpack("B", data[0])[0]
+        try:
+            flag = 0xF & struct.unpack("B", data[0])[0]
+        except TypeError:
+            flag = 0xF & struct.unpack("B", bytes(chr(data[0]), encoding='utf8'))[0]
         message_type = flag >> 1
         is_route = flag & 0x01
 
